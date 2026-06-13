@@ -45,6 +45,8 @@ export function Interview() {
     const audioQueueRef = useRef<AudioBuffer[]>([]);
     const isPlayingRef = useRef(false);
     const aiLevelRef = useRef(0);
+    const isMutedRef = useRef(false);
+
 
     function playNext(audioCtx: AudioContext) {
         if (audioQueueRef.current.length === 0) {
@@ -133,7 +135,7 @@ export function Interview() {
                     recorder.start(250);
 
                     recorder.addEventListener("dataavailable", (e) => {
-                        if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                        if (!isMutedRef.current && ws.readyState === WebSocket.OPEN) ws.send(e.data);
                     });
 
                     setStatus("live");
@@ -156,12 +158,15 @@ export function Interview() {
                         // Optionally render streaming AI text in UI
                         console.log("[frontend] ai chunk:", msg.chunk);
                     } else if (msg.type === "tts_start") {
+                        isMutedRef.current = true;
                         console.log("[frontend] tts sentence incoming");
                     } else if (msg.type === "tts_end") {
+                        if(audioQueueRef.current.length === 0 && !isPlayingRef.current){
+                            isMutedRef.current = false;
+                        };
                         console.log("[frontend] tts sentence received");
-                    }
-                };
-
+                    } 
+                } 
                 ws.onerror = (e) => console.error("[frontend] ws error", e);
                 ws.onclose = () => console.log("[frontend] ws closed");
 

@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { redis } from "./src/lib/redis";
 import { generateResponse } from "./llm";
 import { synthesizeSentence } from "./tts";
+let keepalive: ReturnType<typeof setInterval> | null = null;
 
 export function setupWebSocket(server: any) {
     const wss = new WebSocketServer({ server, path: "/ws/interview" });
@@ -57,8 +58,34 @@ export function setupWebSocket(server: any) {
             console.log("[deepgram] connected, replaying", earlyBuffer.length, "buffered chunks");
             for (const chunk of earlyBuffer) dgSocket.send(chunk);
             earlyBuffer.length = 0;
-        });
 
+             const keepalive = setInterval(() => {
+                    if (dgSocket.readyState === WebSocket.OPEN) {
+                        dgSocket.send(JSON.stringify({ type: "KeepAlive" }));
+                    } else {
+                        clearInterval(keepalive);
+                    }
+                }, 5000);
+
+             setTimeout(async () => {
+                  await setAiSpeaking(true);
+                     generateResponse(
+            sessionId,
+            "Begin the interview. Greet the candidate and introduce yourself.",
+            githubData,
+            (chunk) => clientSocket.send(JSON.stringify({ type: "ai_chunk", chunk })),
+            async (sentence) => {
+                const audio = await synthesizeSentence(sentence);
+                clientSocket.send(JSON.stringify({ type: "tts_start" }));
+                clientSocket.send(audio);
+                clientSocket.send(JSON.stringify({ type: "tts_end" }));
+            }
+        )
+        .then(() => setAiSpeaking(false))
+        .catch(console.error);
+    }, 500);
+        });
+        
         // Forward mic audio to Deepgram STT
         clientSocket.on("message", (audioChunk) => {
             if (dgSocket.readyState === WebSocket.OPEN) {
@@ -88,8 +115,6 @@ export function setupWebSocket(server: any) {
                 session.lastTranscript = transcript;
                 await redis.set(`session:${sessionId}`, JSON.stringify(session));
             }
-
-            console.log("[transcript]", transcript);
 
             // Mark AI as speaking before TTS starts
             await setAiSpeaking(true);
@@ -137,6 +162,7 @@ export function setupWebSocket(server: any) {
 
         dgSocket.on("close", (code, reason) => {
             console.log("[deepgram] closed", code, reason.toString());
+             if (keepalive) clearInterval(keepalive); // accessible here
             clientSocket.close();
         });
 
