@@ -87,8 +87,13 @@ export function setupWebSocket(server: any) {
         });
         
         // Forward mic audio to Deepgram STT
-        clientSocket.on("message", (audioChunk) => {
-            if (dgSocket.readyState === WebSocket.OPEN) {
+        clientSocket.on("message", async(audioChunk) => {
+                console.log("[audio] chunk size:", (audioChunk as Buffer).length, "dg state:", dgSocket.readyState);
+            const raw = await redis.get(`session:${sessionId}`);
+                    const session = raw ? JSON.parse(raw) : { aiSpeaking: false };
+                    
+                    if (session.aiSpeaking) return;
+                if (dgSocket.readyState === WebSocket.OPEN) {
                 dgSocket.send(audioChunk);
             } else {
                 earlyBuffer.push(audioChunk as Buffer);
@@ -98,6 +103,8 @@ export function setupWebSocket(server: any) {
         // Handle Deepgram STT transcripts
         dgSocket.on("message", async (message) => {
             const data = JSON.parse(message.toString());
+                console.log("[deepgram raw]", JSON.stringify(data).slice(0, 200));
+
             const transcript = data.channel?.alternatives?.[0]?.transcript;
             const isFinal = data.is_final;
 

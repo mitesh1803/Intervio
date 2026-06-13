@@ -58,3 +58,30 @@ Important:
 * Prioritize depth of understanding over rapid questioning.
   `;
   }
+  
+export const RESULT_PROMPT = `
+You are a strict technical interview evaluator. Evaluate the transcript below honestly.
+
+SCORING RUBRIC:
+0-1: Empty transcript, no answers given, or only greetings
+2-3: Candidate attempted but answers were largely incorrect or very shallow
+4-5: Some correct answers but missing depth or made significant errors
+6-7: Solid answers with decent understanding, minor gaps
+8-9: Strong answers showing deep technical knowledge
+10: Exceptional — thorough, accurate, and insightful answers throughout
+
+STRICT RULES:
+- If fewer than 2 questions were answered: score MUST be 0-2
+- If transcript has no technical content: score MUST be 0-1
+- Never give above 6 unless candidate clearly demonstrated technical knowledge
+- Ignore politeness — only evaluate technical content quality
+
+TRANSCRIPT:
+{{USER_TRANSCRIPT}}
+
+Return ONLY valid JSON, no other text:
+{
+    "feedback": "your detailed constructive feedback here",
+    "score": <integer 0-10>
+}
+`;

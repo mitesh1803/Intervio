@@ -8,8 +8,7 @@ import { setupWebSocket } from "./ws";
 import  http from "http"
 const app = express();
 app.use(express.json());
-app.use(cors());
-
+app.use(cors({ origin: process.env.FRONTEND_URL }));
 // In-memory lock to prevent concurrent result calculations for the same interview
 const calculatingResult = new Set<string>();
 
@@ -133,8 +132,21 @@ app.get("/api/v1/result/:interviewId", async (req, res) => {
     });
 
     if (interview.status !== "Done" && !calculatingResult.has(interviewId)) {
-        calculatingResult.add(interviewId);
+    calculatingResult.add(interviewId);
 
+    const userMessages = interview.conversations.filter(c => c.type === "User");
+    
+    if (userMessages.length === 0) {
+        // No user speech at all — skip LLM call entirely
+        prisma.interview.update({
+            where: { id: interviewId },
+            data: { 
+                status: "Done", 
+                feedback: "Candidate did not speak during the interview.", 
+                score: 0 
+            }
+        }).finally(() => calculatingResult.delete(interviewId));
+    } else {
         calculateResult(interview.conversations)
             .then(result =>
                 prisma.interview.update({
@@ -145,32 +157,9 @@ app.get("/api/v1/result/:interviewId", async (req, res) => {
             .catch(e => console.error("[result] calculation failed:", e))
             .finally(() => calculatingResult.delete(interviewId));
     }
+}
 });
 
-
-// // Issues short-lived Deepgram token so the prod key is never exposed to the browser
-// app.get("/api/v1/deepgram/token", async (req, res) => {
-//     try {
-        
-//         const response = await fetch("https://api.deepgram.com/v1/auth/grant", {
-//             method: "POST",
-//             headers: {
-//                 Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`,
-//                 "Content-Type": "application/json",
-//             },
-//             body: JSON.stringify({
-//                 time_to_live: 60,  // token valid for 60s — enough to open the WS
-//                 comment: "interview-stt",
-//             }),
-//         });
-//         const data = await response.json() as any;
-//         const token=data.access_token;
-//         res.json({  token });
-//     } catch (e) {
-//         console.error("[deepgram/token] failed:", e);
-//         res.status(500).json({ message: "Failed to issue Deepgram token" });
-//     }
-// })?????
 const server = http.createServer(app);
 setupWebSocket(server);
 server.listen(3001, () => console.log("[backend] listening on port 3001"));

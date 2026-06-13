@@ -47,17 +47,21 @@ export function Interview() {
     const aiLevelRef = useRef(0);
     const isMutedRef = useRef(false);
 
-
     function playNext(audioCtx: AudioContext) {
         if (audioQueueRef.current.length === 0) {
             isPlayingRef.current = false;
             aiLevelRef.current = 0;
+            // Unmute mic — all audio finished playing
+            setTimeout(() => {
+                isMutedRef.current = false;
+                console.log("[frontend] mic unmuted");
+            }, 300);
             return;
         }
+
         isPlayingRef.current = true;
         const buffer = audioQueueRef.current.shift()!;
 
-        // Wire level meter for AI audio
         const source = audioCtx.createBufferSource();
         source.buffer = buffer;
 
@@ -78,7 +82,6 @@ export function Interview() {
             aiLevelRef.current = Math.min(1, Math.sqrt(sum / data.length) * 3.2);
         };
 
-        // Keep measuring level while this buffer plays
         const levelInterval = setInterval(measureLevel, 50);
 
         source.onended = () => {
@@ -104,7 +107,6 @@ export function Interview() {
 
     useEffect(() => {
         let cancelled = false;
-        // We need a stable reference to audioCtx for the ws.onmessage closure
         let audioCtx: AudioContext;
 
         (async () => {
@@ -119,13 +121,11 @@ export function Interview() {
 
                 const userMeter = createLevelMeter(audioCtx, ms);
 
-                // Connect to backend WebSocket
-                const ws = new WebSocket(
-                    `ws://localhost:3001/ws/interview?interviewId=${interviewId}`
-                );
+                const WS_URL = BACKEND_URL.replace("http", "ws");
+                const ws = new WebSocket(`${WS_URL}/ws/interview?interviewId=${interviewId}`);
                 wsRef.current = ws;
 
-                ws.binaryType = "arraybuffer"; // important — receive audio as ArrayBuffer not Blob
+                ws.binaryType = "arraybuffer";
 
                 ws.onopen = () => {
                     console.log("[frontend] ws connected");
@@ -135,7 +135,9 @@ export function Interview() {
                     recorder.start(250);
 
                     recorder.addEventListener("dataavailable", (e) => {
-                        if (!isMutedRef.current && ws.readyState === WebSocket.OPEN) ws.send(e.data);
+                        if (!isMutedRef.current && ws.readyState === WebSocket.OPEN) {
+                            ws.send(e.data);
+                        }
                     });
 
                     setStatus("live");
@@ -149,32 +151,28 @@ export function Interview() {
                         return;
                     }
 
-                    // Text frame = JSON control message
                     const msg = JSON.parse(event.data as string);
 
                     if (msg.type === "transcript") {
                         console.log("[frontend] user said:", msg.transcript);
                     } else if (msg.type === "ai_chunk") {
-                        // Optionally render streaming AI text in UI
                         console.log("[frontend] ai chunk:", msg.chunk);
                     } else if (msg.type === "tts_start") {
                         isMutedRef.current = true;
-                        console.log("[frontend] tts sentence incoming");
+                        console.log("[frontend] mic muted");
                     } else if (msg.type === "tts_end") {
-                        if(audioQueueRef.current.length === 0 && !isPlayingRef.current){
-                            isMutedRef.current = false;
-                        };
+                        // Don't unmute here — playNext unmutes after queue drains
                         console.log("[frontend] tts sentence received");
-                    } 
-                } 
+                    }
+                };
+
                 ws.onerror = (e) => console.error("[frontend] ws error", e);
                 ws.onclose = () => console.log("[frontend] ws closed");
 
                 userStreamRef.current = ms;
 
-                // Animation loop — update both volume meters
                 const tick = () => {
-                    setUserLevel(userMeter());
+                    setUserLevel(isMutedRef.current ? 0 : userMeter());
                     setAiLevel(aiLevelRef.current);
                     rafRef.current = requestAnimationFrame(tick);
                 };
@@ -199,6 +197,7 @@ export function Interview() {
         audioCtxRef.current?.close().catch(() => {});
         audioQueueRef.current = [];
         isPlayingRef.current = false;
+        isMutedRef.current = false;
     }
 
     function endInterview() {
@@ -208,7 +207,7 @@ export function Interview() {
     }
 
     const aiSpeaking = aiLevel > 0.06 && aiLevel >= userLevel;
-    const userSpeaking = userLevel > 0.06 && userLevel > aiLevel;
+    const userSpeaking = !isMutedRef.current && userLevel > 0.06 && userLevel > aiLevel;
 
     return (
         <main className="flex h-screen w-screen flex-col overflow-hidden">
@@ -242,7 +241,7 @@ export function Interview() {
                             level={aiLevel}
                             speaking={aiSpeaking}
                             label="Interviewer"
-                            sublabel="Listening"
+                            sublabel={aiSpeaking ? "Speaking" : "Listening"}
                             icon={Bot}
                             accent="violet"
                         />
@@ -250,7 +249,7 @@ export function Interview() {
                             level={userLevel}
                             speaking={userSpeaking}
                             label="You"
-                            sublabel="Mic on"
+                            sublabel={isMutedRef.current ? "Muted" : "Mic on"}
                             icon={User}
                             accent="emerald"
                         />
