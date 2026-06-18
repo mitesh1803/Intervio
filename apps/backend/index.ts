@@ -132,7 +132,7 @@ app.get("/api/v1/result/:interviewId", async (req, res) => {
   res.json({
     score: interview.score,
     feedback: interview.feedback,
-    transcript: interview.conversations.map((c) => ({
+    transcript: interview.conversations.map((c:any) => ({
       type: c.type,
       content: c.message,
       createdAt: c.createdAt,
@@ -144,7 +144,7 @@ app.get("/api/v1/result/:interviewId", async (req, res) => {
     calculatingResult.add(interviewId);
 
     const userMessages = interview.conversations.filter(
-      (c) => c.type === "User",
+      (c:any) => c.type === "User",
     );
 
     if (userMessages.length === 0) {
