@@ -1,6 +1,6 @@
-# HireMind 🎙️
+# Intervio 🎙️
 
-**HireMind** is a real-time, voice-driven AI technical interviewer designed to conduct personalized software engineering mock interviews. By analyzing a candidate's GitHub profile, the AI customizes the questions to focus on their real-world projects and technologies. The entire experience happens in real-time using low-latency WebSockets, real-time speech-to-text (STT), and voice synthesis (TTS), concluding with a structured technical grading report.
+**Intervio** is a real-time, voice-driven AI technical interviewer designed to conduct personalized software engineering mock interviews. By analyzing a candidate's GitHub profile, the AI customizes the questions to focus on their real-world projects and technologies. The entire experience happens in real-time using low-latency WebSockets, real-time speech-to-text (STT), and voice synthesis (TTS), concluding with a structured technical grading report.
 
 ---
 
@@ -21,7 +21,7 @@
 This project is structured as a **monorepo** managed by **Turborepo** and powered by **Bun**.
 
 ```
-HireMind/
+Intervio/
 ├── apps/
 │   ├── frontend/         # React SPA (TailwindCSS, WebSockets, AudioContext, VoiceOrb)
 │   └── backend/          # Express + WebSocket Server (Groq, Deepgram, Redis, Prisma)
@@ -50,7 +50,7 @@ The diagram below outlines the end-to-end flow of the voice session and evaluati
 sequenceDiagram
     autonumber
     actor Candidate as Candidate (Browser)
-    participant Backend as HireMind Backend
+    participant Backend as Intervio Backend
     participant AI as AI Services (Groq & Deepgram)
 
     %% Setup
@@ -98,7 +98,7 @@ BACKEND_URL="http://localhost:3001"
 
 ## 🚀 Getting Started
 
-Follow these steps to run HireMind locally:
+Follow these steps to run Intervio locally:
 
 ### 1. Prerequisites
 
